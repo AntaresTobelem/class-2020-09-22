@@ -40,7 +40,12 @@ sep_old <-
          title = course_title,
          name = course_name,
          department = course_department) %>% 
-  filter(u_grad > 10)
+  filter(u_grad > 10) %>%
+  group_by(title) %>%
+  mutate(u_grad_old = sum(u_grad)) %>%
+  select (-u_grad) %>%
+  distinct()
+view(sep_old)
 
 # But this is not correct! Look for Gov 50: Data. What do you see? What can you
 # do to clean it up?
@@ -51,6 +56,24 @@ sep_old <-
 
 **Prompt:** Read in and clean the new data, creating an object called `sep_new`. 
 
+```{r}
+sep_new <-
+  read_excel("new_data/class_enrollment_summary_by_term_9-22-2020.xlsx", skip = 3) %>%
+  clean_names() %>% 
+  filter(! is.na(course_title)) %>% 
+  select(-grad, -non_degree, -x_reg, -vus, -employee, 
+         -withdraw, -total, -instructor_full_name, -course_section_code) %>%
+  rename(id = course_id,
+         title = course_title,
+         name = course_name,
+         department = course_department) %>% 
+  filter(u_grad > 10) %>%
+  group_by(title) %>%
+  mutate(u_grad_new = sum(u_grad)) %>%
+  select (-u_grad) %>%
+  distinct()
+view(sep_new)
+```
 
 
 ### Scene 2
@@ -60,17 +83,42 @@ sep_old <-
 
 Before we start on the model, Wisdom suggests we should:
 
-
+- decide what data is actually relevant to the problem we want to solve (in this case, we need undergraduate enrollment data between Sept 1 and today)
+- specifically define what we want to know (we want to understand enrollment trends)
+- throwing out duplicates and unnecessary rows and columns to make our data easier to analyze
 
 
 After we have a model, Temperance suggests we should:
 
-
+- We must recognize the limitations of our model.
+- We cannot ignore the uncertainty and unmodeled variation that come along with inference (We can show how enrollment data has changed, but we cannot explain why)
+- We have to be aware of the fact that we cannot differentiate people who added vs. dropped the course.
+- We must be careful given that students dropping the course may be fundamentally different from those adding the course, since courses are not randomly assigned.
 
 ### Scene 3
 
 **Prompt:** Which classes had the biggest increases and decreases in undergraduate enrollments between September 1 and today? Make a graphic that shows the 5 biggest increases and decreases. Make it look nice.
 
+```{r}
+library(ggthemes)
+
+ugrad_total <- inner_join(sep_old, sep_new, by="id") %>%
+  mutate(ugrad_diff = u_grad_new-u_grad_old) %>%
+  select(-department.y, -title.y, -name.y) %>%
+  arrange(desc(ugrad_diff)) %>%
+  slice(1:5, 392:396) %>%
+  mutate(positive = ifelse(ugrad_diff > 0, "Increase", "Decrease")) %>%
+  mutate(ugrad_diff_abs = abs(ugrad_diff)) %>%
+  group_by(positive)
+
+  ggplot(ugrad_total, aes(x=name.x, y=ugrad_diff_abs)) +
+    geom_col() +
+    facet_wrap(~positive) +
+    labs(title= "Biggest Changes in Course Enrollment", x="Course Title", y="Change in Enrollment") +
+    theme_bw() +
+    theme(axis.text.x=element_text(angle=90,hjust=1))
+    
+```
 
 
 
